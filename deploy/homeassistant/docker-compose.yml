@@ -1,0 +1,42 @@
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    # privileged + host networking is the officially recommended container
+    # setup: USB devices (Zigbee/Z-Wave sticks) work, and mDNS/SSDP discovery
+    # + local voice-assistant control need the host network.
+    privileged: true
+    network_mode: host
+    environment:
+      - TZ=America/Chicago
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      # Bluetooth (built into the Pi 5). Needed for HomeKit-over-BLE
+      # accessories and for BLE-based Matter commissioning.
+      - /run/dbus:/run/dbus:ro
+
+  # Matter controller. Home Assistant's `matter` integration is only a client —
+  # it talks to this server over ws://localhost:5580/ws, and this is the process
+  # that actually joins the Matter fabric and drives the devices.
+  #
+  # NOTE: this is matter-js, not the old home-assistant-libs/python-matter-server
+  # (archived 2026-06-23 in favour of this one).
+  matter-server:
+    container_name: matter-server
+    image: ghcr.io/matter-js/matterjs-server:stable
+    restart: unless-stopped
+    # Host networking is required, not optional: Matter relies on mDNS and
+    # link-local IPv6 to find and reach devices. Bridge networking breaks both.
+    network_mode: host
+    environment:
+      # Commission over the Pi's Bluetooth via the host BlueZ daemon. Most
+      # Matter-over-Wi-Fi devices are BLE-first: you pair over Bluetooth, then
+      # the device is handed Wi-Fi credentials. Using D-Bus keeps this
+      # container unprivileged.
+      - NOBLE_BINDINGS=dbus
+      - BLUETOOTH_ADAPTER=0
+    volumes:
+      - ./matter-data:/data
+      - /run/dbus:/run/dbus:ro

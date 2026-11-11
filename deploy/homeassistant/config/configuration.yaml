@@ -1,0 +1,58 @@
+# Home Assistant seed configuration — lives in the ControlHub repo.
+# HA writes runtime state (.storage/, databases, logs) next to this file;
+# all of that is gitignored, so only this seed config is version-controlled.
+
+# Standard integrations: API, frontend, discovery, mobile_app, automations UI…
+# ControlHub's REST + WebSocket integration rides on `api`, included here.
+# `default_config` also pulls in the discovery pieces that make the Matter,
+# HomeKit and Alexa integrations show up on their own: zeroconf/mDNS, SSDP,
+# DHCP, Bluetooth and the USB scanner.
+default_config:
+
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  # ControlHub embeds the Home Assistant UI inside its own shell (Spaces →
+  # Home Assistant), which browsers refuse to render while HA sends its default
+  # `X-Frame-Options: SAMEORIGIN`. Turning that header off is what makes the
+  # embedded panel work.
+  #
+  # Understand the tradeoff honestly: X-Frame-Options is anti-clickjacking, and
+  # framing happens in the VIEWER's browser — so with it off, ANY website you
+  # visit can `<iframe src="http://<pi>:8123">` and, because your browser
+  # attaches your HA session, overlay invisible controls to trick you into
+  # acting on your real home (clickjacking). Network topology does NOT prevent
+  # this: it's your own browser doing the framing, not an attacker reaching the
+  # Pi. The practical risk on a personal kiosk is modest but real.
+  #
+  # The correct hardening, if you want it, is to serve HA behind a reverse proxy
+  # that sets `Content-Security-Policy: frame-ancestors <controlhub-origin>` —
+  # that re-blocks every origin except ControlHub's while keeping the embed.
+  # If you don't embed HA, delete this line to restore the default protection.
+  use_x_frame_options: false
+
+# ── Outbound bridge to Apple Home (optional) ─────────────────────────────
+# Everything above is about pulling devices *into* HA. This block does the
+# reverse: it publishes HA's own devices to Apple Home / Siri as a HomeKit
+# bridge. Entirely local, no cloud, no subscription.
+#
+# Left commented because it is additive, not required: uncomment, restart HA,
+# then open Settings → Devices & Services for the pairing QR code.
+#
+# homekit:
+#   - name: ControlHub Bridge
+#     filter:
+#       include_domains:
+#         - light
+#         - switch
+#         - fan
+#         - cover
+#         - lock
+#         - climate
+#         - sensor
+#         - binary_sensor

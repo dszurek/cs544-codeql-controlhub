@@ -1,0 +1,11 @@
+# Home Assistant writes its entire runtime state into this directory.
+# Whitelist only the seed files we actually version-control.
+*
+!.gitignore
+!configuration.yaml
+!automations.yaml
+!scripts.yaml
+!scenes.yaml
+!themes/
+themes/*
+!themes/controlhub.yaml

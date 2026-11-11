@@ -1,0 +1,6 @@
+# ControlHub 12-hour briefing — add to crontab with:
+#   crontab -e
+# Runs at 07:00 and 19:00 local time every day.
+# Adjust PATH so `npx` and `claude` resolve; add FQN to the project root.
+
+0 7,19 * * * cd /home/pi/controlhub && /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=$HOME ./scripts/run-briefing.ts >> /var/log/controlhub-briefing.log 2>&1

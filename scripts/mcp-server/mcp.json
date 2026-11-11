@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "controlhub": {
+      "command": "npx",
+      "args": ["-y", "tsx", "scripts/mcp-server/index.ts"]
+    }
+  }
+}

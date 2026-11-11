@@ -1,0 +1,38 @@
+# ControlHub theme — matches the hub's lifted-graphite earthy palette
+# (synced with dszurekportfolio), so HA's own UI feels native on the
+# kiosk. Select under Profile → Themes.
+controlhub:
+  # base
+  primary-background-color: "#1c1f23"
+  secondary-background-color: "#22262b"
+  card-background-color: "#2a2f35"
+  ha-card-border-color: "rgba(216, 204, 192, 0.10)"
+  ha-card-border-radius: "10px"
+  # text
+  primary-text-color: "#f4f1ec"
+  secondary-text-color: "#aab2b8"
+  text-primary-color: "#f4f1ec"
+  disabled-text-color: "#6f757c"
+  # accents (leather + phosphor forest)
+  primary-color: "#c79a6b"
+  accent-color: "#72b694"
+  state-icon-color: "#c79a6b"
+  state-icon-active-color: "#72b694"
+  # interface chrome
+  app-header-background-color: "#1c1f23"
+  app-header-text-color: "#f4f1ec"
+  sidebar-background-color: "#16181c"
+  sidebar-text-color: "#aab2b8"
+  sidebar-selected-text-color: "#c79a6b"
+  sidebar-selected-icon-color: "#c79a6b"
+  divider-color: "rgba(216, 204, 192, 0.10)"
+  # inputs
+  switch-checked-color: "#72b694"
+  switch-unchecked-color: "#6f757c"
+  slider-color: "#c79a6b"
+  slider-track-color: "rgba(199, 154, 107, 0.25)"
+  # status
+  error-color: "#e0563f"
+  warning-color: "#d9a45f"
+  success-color: "#72b694"
+  info-color: "#c79a6b"

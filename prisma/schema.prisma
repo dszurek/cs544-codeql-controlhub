@@ -1,0 +1,510 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+model Task {
+  id               String    @id @default(cuid())
+  title            String
+  notes            String?
+  description      String?                         // markdown long-form body
+  type             String    @default("general")   // assignment | homework | meeting | shopping | general
+  priority         Int       @default(4)           // 1 (highest) – 4 (lowest)
+  status           String    @default("pending")   // pending | in_progress | completed | cancelled
+  dueDate          DateTime?
+  dueTime          String?                         // "HH:MM" string for time component
+  startDate        DateTime?                       // timeline start for homework
+  estimatedMinutes Int?                            // time estimate
+  courseId         String?                         // homework: course name/id
+  recurrence       String?                         // rrule string or null
+  projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id])
+  parentId         String?
+  parent           Task?     @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks         Task[]    @relation("Subtasks")
+  source           String    @default("manual")    // manual | blackboard_sync | grade_sync
+  externalId       String?   @unique
+  aiPriority       Boolean   @default(false)        // flagged high-priority by briefing
+  snoozedUntil     DateTime?                        // hidden from lists until this time
+  blockStart       DateTime?                        // time-blocking start
+  blockEnd         DateTime?                        // time-blocking end
+  blockPinned      Boolean   @default(false)         // user-locked; Flow replan won't move it
+  blockSource      String?                           // manual | flow
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  blockedBy TaskBlocker[] @relation("BlockedTask")
+  blocks    TaskBlocker[] @relation("BlockerTask")
+  comments  TaskComment[]
+
+  @@index([blockStart])             // Flow getTodayBlocks/replan + ICS feed
+}
+
+model TaskBlocker {
+  id         String   @id @default(cuid())
+  taskId     String                          // the task that is blocked
+  task       Task     @relation("BlockedTask", fields: [taskId], references: [id], onDelete: Cascade)
+  blockerId  String                          // the task that blocks it
+  blocker    Task     @relation("BlockerTask", fields: [blockerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([taskId, blockerId])
+  @@index([taskId])
+  @@index([blockerId])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model TaskEmailLink {
+  id        String   @id @default(cuid())
+  taskId    String
+  emailId   String
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, emailId])
+  @@index([taskId])
+  @@index([emailId])
+}
+
+model TaskEventLink {
+  id        String   @id @default(cuid())
+  taskId    String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, eventId])
+  @@index([taskId])
+  @@index([eventId])
+}
+
+model Project {
+  id        String  @id @default(cuid())
+  name      String
+  color     String  @default("#8b5a3c")
+  icon      String?
+  sortOrder Int     @default(0)
+  tasks     Task[]
+}
+
+model CalendarEvent {
+  id           String   @id @default(cuid())
+  title        String
+  startAt      DateTime
+  endAt        DateTime
+  allDay       Boolean  @default(false)
+  location     String?
+  source       String   // outlook | icloud
+  sourceId     String
+  calendarName String
+  color        String?
+  rawData      String?
+  updatedAt    DateTime @updatedAt
+
+  @@unique([source, sourceId])
+}
+
+model Email {
+  id           String    @id @default(cuid())
+  subject      String
+  senderName   String
+  senderEmail  String
+  preview      String?
+  isRead       Boolean   @default(false)
+  receivedAt   DateTime
+  source       String    // outlook | gmail
+  sourceId     String
+  aiPriority   Boolean   @default(false)          // flagged high-priority by briefing
+  aiTier       String?                            // urgent | reply | fyi | noise (Cortex triage)
+  aiSummary    String?                            // one-line AI summary
+  snoozedUntil DateTime?                          // hidden from ControlHub badges until this time
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([source, sourceId])
+  @@index([isRead, aiTier])         // post-sync triage trigger + reply-pending count
+}
+
+model DailyNote {
+  id        String   @id @default(cuid())
+  date      String   @unique          // YYYY-MM-DD
+  body      String   @default("")     // markdown
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SomedayItem {
+  id               String    @id @default(cuid())
+  title            String
+  notes            String?
+  promotedTaskId   String?
+  createdAt        DateTime  @default(now())
+  promotedAt       DateTime?
+}
+
+model Habit {
+  id        String        @id @default(cuid())
+  name      String
+  icon      String?
+  color     String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  entries   HabitEntry[]
+}
+
+model HabitEntry {
+  id        String   @id @default(cuid())
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      String                              // YYYY-MM-DD local
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
+  @@index([habitId])
+  @@index([date])
+}
+
+model TaskRepo {
+  id          String   @id @default(cuid())
+  taskId      String   @unique
+  repoUrl     String                              // e.g. git@github.com:user/repo.git or https://github.com/user/repo
+  branch      String?                             // optional branch override
+  localPath   String?                             // hint path where repo is cloned locally (for copy-paste cd)
+  defaultInstruction String?                      // optional default prompt prefix
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TaskLink {
+  id         String   @id @default(cuid())
+  sourceType String                          // task | email | event | note
+  sourceId   String
+  targetType String                          // task | email | event | note | commit | repo
+  targetId   String
+  label      String?                         // optional display label
+  createdAt  DateTime @default(now())
+
+  @@unique([sourceType, sourceId, targetType, targetId])
+  @@index([sourceType, sourceId])
+  @@index([targetType, targetId])
+}
+
+model HomeAssistantScene {
+  id         String @id @default(cuid())
+  haEntityId String @unique
+  name       String
+  icon       String?
+  sortOrder  Int    @default(0)
+}
+
+model Settings {
+  key   String @id
+  value String
+}
+
+model SyncLog {
+  id       String   @id @default(cuid())
+  source   String   // outlook | gmail | icloud | homeassistant
+  syncedAt DateTime @default(now())
+  status   String   // success | error
+  error    String?
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  uuid      String        @unique   // UUID used as claude --session-id; "" for HA
+  backend   String                   // claude-code | home-assistant
+  title     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // user | assistant | system | tool
+  content   String                       // raw text
+  actions   String?                      // JSON-encoded array of parsed controlhub-action blocks
+  createdAt DateTime    @default(now())
+}
+
+model EmailRule {
+  id            String   @id @default(cuid())
+  pattern       String                     // substring or regex for sender email/name
+  matchType     String   @default("contains") // contains | exact | regex
+  action        String                     // alert | mute | spam
+  label         String?                    // optional display label e.g. "Boss"
+  createdAt     DateTime @default(now())
+}
+
+model EmailAccount {
+  id           String    @id @default(cuid())
+  provider     String                            // outlook | gmail
+  email        String
+  label        String?
+  enabled      Boolean   @default(true)
+  accessToken  String?
+  refreshToken String?
+  tokenExpiry  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([provider, email])
+}
+
+model EmailEventLink {
+  id       String   @id @default(cuid())
+  emailId  String
+  eventId  String
+  createdAt DateTime @default(now())
+
+  @@unique([emailId, eventId])
+  @@index([eventId])
+  @@index([emailId])
+}
+
+model Briefing {
+  id              String   @id @default(cuid())
+  summary         String                  // markdown summary from Claude
+  priorityTasks   String   @default("[]") // JSON array of task IDs
+  priorityEmails  String   @default("[]") // JSON array of email IDs
+  model           String?
+  error           String?
+  createdAt       DateTime @default(now())
+}
+
+model CalendarSource {
+  id            String    @id @default(cuid())
+  url           String    @unique                    // https URL to an .ics feed
+  label         String?
+  color         String?
+  enabled       Boolean   @default(true)
+  lastSyncedAt  DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model TaskTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  items       String   @default("[]")               // JSON: TemplateItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ShutdownLog {
+  id                String   @id @default(cuid())
+  date              String   @unique                // YYYY-MM-DD local date
+  incompleteTaskIds String   @default("[]")         // JSON array - tasks triaged
+  tomorrowTopIds    String   @default("[]")         // JSON array - tomorrow top 3
+  journal           String?
+  createdAt         DateTime @default(now())
+}
+
+model GradeClass {
+  id           String           @id @default(cuid())
+  name         String
+  code         String?                                 // e.g. "CS 101"
+  creditHours  Float            @default(3)
+  qualityPoints Float           @default(0)            // running GPA quality points earned
+  sortOrder    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  categories   GradeCategory[]
+  assignments  GradeAssignment[]
+}
+
+model GradeCategory {
+  id          String            @id @default(cuid())
+  classId     String
+  class       GradeClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  name        String
+  weight      Float             @default(0)           // percentage 0-100
+  sortOrder   Int               @default(0)
+  assignments GradeAssignment[]
+
+  @@index([classId])
+}
+
+model GradeAssignment {
+  id            String         @id @default(cuid())
+  classId       String
+  class         GradeClass     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      GradeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name          String
+  pointsEarned  Float?                                // null if upcoming/ungraded
+  pointsPossible Float         @default(100)
+  dueDate       DateTime?
+  isUpcoming    Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([classId])
+  @@index([categoryId])
+}
+
+// ── Health (Phase 2: Apple Health via Health Auto Export) ──────────────
+
+model HealthSample {
+  id        String   @id @default(cuid())
+  type      String   // HAE metric name, e.g. "heart_rate_variability"
+  value     Float
+  unit      String?
+  startDate DateTime
+  endDate   DateTime
+  source    String?  // exporting device/app
+  metadata  String?  // JSON extras (e.g. sleep stage breakdown)
+  createdAt DateTime @default(now())
+
+  // idempotent ingestion: re-pushing the same export never duplicates
+  @@unique([type, startDate, endDate])
+  @@index([type, startDate])
+  @@index([startDate])
+}
+
+model HealthDaily {
+  id              String   @id @default(cuid())
+  date            DateTime @unique // local midnight of the day
+  sleepMinutes    Float?
+  sleepDeepMin    Float?
+  sleepRemMin     Float?
+  sleepCoreMin    Float?
+  sleepAwakeMin   Float?
+  hrvMs           Float?   // daily avg SDNN
+  restingHr       Float?
+  steps           Float?
+  activeEnergy    Float?   // kcal
+  exerciseMinutes Float?
+  respRate        Float?
+  readiness       Float?   // 0-100, derived against 30-day baselines
+  sleepDebtMin    Float?   // rolling 14-day deficit vs sleep-need baseline
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+}
+
+model Workout {
+  id        String   @id @default(cuid())
+  type      String
+  startDate DateTime
+  endDate   DateTime
+  duration  Float?   // minutes
+  energy    Float?   // kcal
+  distance  Float?   // km
+  avgHr     Float?
+  maxHr     Float?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@unique([type, startDate, endDate])
+  @@index([startDate])
+}
+
+// ── Cortex (Phase 3: AI job engine + Signals feed) ─────────────────────
+
+model AiJob {
+  id           String    @id @default(cuid())
+  type         String    // briefing | weekly_review | health_insight | ...
+  payload      String?   // JSON input
+  status       String    @default("queued") // queued | running | succeeded | failed
+  result       String?   // validated JSON output
+  error        String?
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(2)
+  scheduledFor DateTime  @default(now())   // run no earlier than this
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  signals      Signal[]
+
+  @@index([status, scheduledFor])
+  @@index([type, createdAt])
+}
+
+model Signal {
+  id          String    @id @default(cuid())
+  kind        String    // briefing | weekly_review | health_insight | system
+  title       String
+  body        String    // markdown
+  data        String?   // JSON extras (ids, metrics)
+  glow        String    @default("track") // track | attend | urgent
+  jobId       String?
+  job         AiJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([dismissedAt, createdAt])
+}
+
+// ── Routines (Phase 6: trigger → condition → action automation) ────────
+
+model Routine {
+  id              String     @id @default(cuid())
+  name            String
+  enabled         Boolean    @default(true)
+  trigger         String     // JSON discriminated union (see lib/routines/types)
+  conditions      String     @default("[]") // JSON array, ANDed
+  actions         String     // JSON array
+  cooldownMinutes Int        @default(0)    // min gap between fires
+  lastFiredAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  runs            RoutineRun[]
+}
+
+model RoutineRun {
+  id        String   @id @default(cuid())
+  routineId String
+  routine   Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  dedupeKey String?  // e.g. event id / task id / day key the fire was tied to
+  ok        Boolean  @default(true)
+  detail    String?
+  firedAt   DateTime @default(now())
+
+  @@index([routineId, firedAt])
+  @@index([routineId, dedupeKey])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  keys      String   // JSON {p256dh, auth}
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+// ── Forge (Phase 8: AI self-modification, review-gated) ────────────────
+
+model ForgeJob {
+  id           String    @id @default(cuid())
+  request      String    // natural-language change request
+  status       String    @default("queued") // queued|running|review|applied|discarded|failed
+  branch       String?   // forge/<id>
+  worktreePath String?
+  summary      String?   // Claude's summary of the change
+  filesChanged String?   // JSON array of paths
+  diff         String?   // captured git diff (truncated)
+  testOutput   String?
+  testsPassed  Boolean?  // null = couldn't run
+  error        String?
+  createdAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@index([status, createdAt])
+}
