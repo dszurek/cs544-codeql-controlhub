@@ -1,5 +1,5 @@
-import { getSetting, getSettings, setSetting } from '@/lib/settings';
-import { upsertEvent, deleteEventsBySource } from '@/lib/calendar';
+import { getSettings, setSetting } from '@/lib/settings';
+import { upsertEvent } from '@/lib/calendar';
 import { upsertEmail } from '@/lib/mail';
 import { logSync } from '@/lib/syncLog';
 

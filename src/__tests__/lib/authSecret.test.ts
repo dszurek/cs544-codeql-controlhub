@@ -25,7 +25,7 @@ describe('getSessionSecret', () => {
     const first = getSessionSecret();
     const second = getSessionSecret();
     expect(first).toBe(second);
-    expect(first).toHaveLength(64); // sha256 hex
+    expect(first).toHaveLength(64); // 32-byte scrypt key, hex
   });
 
   it('rotates the secret when the password changes', () => {

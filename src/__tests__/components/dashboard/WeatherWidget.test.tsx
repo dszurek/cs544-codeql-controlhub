@@ -1,8 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { WeatherWidget } from '@/components/dashboard/WeatherWidget';
 
-const PREFS_URL = '/api/preferences';
-
 function makeHourlyData() {
   const times: string[] = [];
   const temps: number[] = [];

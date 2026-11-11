@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useState } from 'react';
 
 // Local copy of TestHaConnectionButton for isolated testing

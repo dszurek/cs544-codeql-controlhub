@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Import the component from SettingsForm by re-exporting or testing indirectly.
 // Since SyncNowButton is not exported, we test it via a local re-implementation

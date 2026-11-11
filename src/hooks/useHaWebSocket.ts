@@ -13,6 +13,34 @@ export interface HaEntityState {
 
 export type HaConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+/**
+ * Home Assistant entity IDs are always `<domain>.<object_id>` made of lowercase
+ * letters, digits and underscores. Anything else coming off the socket (e.g.
+ * `__proto__`, `constructor`) is rejected so a malicious/compromised HA server
+ * cannot use the entity_id as a property name to pollute object prototypes.
+ */
+const HA_ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
+
+function isValidEntity(entity: unknown): entity is HaEntityState {
+  return (
+    typeof entity === 'object' &&
+    entity !== null &&
+    typeof (entity as HaEntityState).entity_id === 'string' &&
+    HA_ENTITY_ID.test((entity as HaEntityState).entity_id)
+  );
+}
+
+/**
+ * Build the entity map without dynamic property writes (`acc[key] = ...`).
+ * Object.fromEntries always defines *own* properties, so even an unexpected key
+ * can never reach Object.prototype.
+ */
+function indexStates(entities: unknown[]): Record<string, HaEntityState> {
+  return Object.fromEntries(
+    entities.filter(isValidEntity).map((e) => [e.entity_id, e] as const)
+  );
+}
+
 export interface UseHaWebSocketReturn {
   states: Record<string, HaEntityState>;
   status: HaConnectionStatus;
@@ -120,10 +148,7 @@ export function useHaWebSocket(): UseHaWebSocketReturn {
             const resultArr = msg.result as HaEntityState[];
             if (Array.isArray(resultArr)) {
               setStates(
-                resultArr.reduce<Record<string, HaEntityState>>((acc, entity) => {
-                  acc[entity.entity_id] = entity;
-                  return acc;
-                }, {})
+                indexStates(resultArr)
               );
             }
           }
@@ -137,11 +162,8 @@ export function useHaWebSocket(): UseHaWebSocketReturn {
             if (ev?.event_type === 'state_changed') {
               const data = ev.data as Record<string, unknown> | undefined;
               const newState = data?.new_state as HaEntityState | null | undefined;
-              if (newState?.entity_id) {
-                setStates((prev) => ({
-                  ...prev,
-                  [newState.entity_id]: newState,
-                }));
+              if (isValidEntity(newState)) {
+                setStates((prev) => indexStates([...Object.values(prev), newState]));
               }
             }
           }
@@ -191,10 +213,7 @@ export function useHaWebSocket(): UseHaWebSocketReturn {
           const statesArr = data.states as HaEntityState[] | undefined;
           if (Array.isArray(statesArr) && isMountedRef.current) {
             setStates(
-              statesArr.reduce<Record<string, HaEntityState>>((acc, entity) => {
-                acc[entity.entity_id] = entity;
-                return acc;
-              }, {})
+              indexStates(statesArr)
             );
           }
         }
